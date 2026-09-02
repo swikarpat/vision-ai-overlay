@@ -46,6 +46,8 @@ The architecture bridges low-level macOS system APIs (`ScreenCaptureKit`, `Carbo
 │        (Google Gemini Multimodal Synthesis Layer)      │
 └────────────────────────────────────────────────────────┘
 
+---
+
 ### 1. On-Device Computer Vision & Neural OCR
 * **Framework:** Apple `Vision` (`VNRecognizeTextRequest`, `VNImageRequestHandler`).
 * **Execution Target:** Apple Silicon Neural Engine (ANE) and unified memory architecture (UMA).
