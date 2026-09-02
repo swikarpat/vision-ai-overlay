@@ -1,4 +1,4 @@
-# StealthOverlay Architecture & Technology Stack
+# AI/ML Overlay Architecture & Technology Stack
 
 An ultra-low-latency, privacy-hardened macOS background daemon and headless Heads-Up Display (HUD) engineered for seamless on-device computer vision, hardware-compositor window virtualization, and contextual Large Language Model (LLM) inference.
 
