@@ -10,9 +10,7 @@ The architecture bridges low-level macOS system APIs (`ScreenCaptureKit`, `Carbo
 
 ---
 
-## Core Technologies & Machine Learning Pipeline
-
-## Pipeline Architecture
+## Core Technologies & Machine Learning Pipeline Architecture
 
 <p align="center">
   <img src="architecture.svg" alt="Overlay Architecture" width="100%">
