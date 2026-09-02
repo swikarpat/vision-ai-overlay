@@ -1,0 +1,11 @@
+# Compiled binaries
+StealthOverlay
+CollabOverlay
+
+# macOS system artifacts
+.DS_Store
+*.dSYM/
+
+# Build outputs
+build/
+DerivedData/
