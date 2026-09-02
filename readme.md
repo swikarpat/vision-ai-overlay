@@ -12,41 +12,11 @@ The architecture bridges low-level macOS system APIs (`ScreenCaptureKit`, `Carbo
 
 ## Core Technologies & Machine Learning Pipeline
 
-```text
-┌────────────────────────────────────────────────────────┐
-│                   macOS WindowServer                   │
-│  (GPU Compositor Layer: sharingType = .none Exclusion) │
-└───────────────────────────┬────────────────────────────┘
-                            │ Raw Display Frame Buffer
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│                    ScreenCaptureKit                    │
-│   Hardware-accelerated screen capture with selective   │
-│            PID/Window exclusion filtering              │
-└───────────────────────────┬────────────────────────────┘
-                            │ Native CGImage Stream
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│                 Apple Vision Framework                 │
-│         (On-Device Neural Engine Text Analysis)        │
-│          • Fast text detection bounding boxes          │
-│          • Accurate transformer/CNN transcription      │
-└───────────────────────────┬────────────────────────────┘
-                            │ Raw Unstructured Text Stream
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│              Deduplication & Stitch Engine             │
-│    Line-boundary overlap matching for scrolled views   │
-└───────────────────────────┬────────────────────────────┘
-                            │ Structured Semantic Payload
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│                 WebKit Embedded Engine                 │
-│         Dynamic DOM Injection & LLM Orchestration      │
-│        (Google Gemini Multimodal Synthesis Layer)      │
-└────────────────────────────────────────────────────────┘
+## Pipeline Architecture
 
----
+<p align="center">
+  <img src="architecture.svg" alt="Overlay Architecture" width="100%">
+</p>
 
 ### 1. On-Device Computer Vision & Neural OCR
 * **Framework:** Apple `Vision` (`VNRecognizeTextRequest`, `VNImageRequestHandler`).
