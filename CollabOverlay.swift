@@ -3,6 +3,8 @@ import WebKit
 import Carbon
 import Vision
 import ScreenCaptureKit
+import AVFoundation
+import CoreMedia
 
 // 1. Independent Instance Guard
 let lockPath = "/tmp/com.swikar.collaboverlay.lock"
@@ -18,30 +20,41 @@ class CollabPanel: NSPanel {
             backing: .buffered,
             defer: false
         )
-        sharingType = .none // 100% invisible in Zoom, Meet, Teams, and browser screenshare
+        sharingType = .none
         level = .floating
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         isOpaque = false
         backgroundColor = .clear
         ignoresMouseEvents = true
         
-contentView?.wantsLayer = true
-contentView?.layer?.cornerRadius = 12
-contentView?.layer?.masksToBounds = true
-contentView?.layer?.borderWidth = 1.5
-// Neon Violet border (CoderPad / Live Interviews)
-contentView?.layer?.borderColor = NSColor(red: 0.65, green: 0.33, blue: 0.97, alpha: 0.85).cgColor    }
+        contentView?.wantsLayer = true
+        contentView?.layer?.cornerRadius = 12
+        contentView?.layer?.masksToBounds = true
+        contentView?.layer?.borderWidth = 1.5
+        // Default State: Neon Violet border (Audio Listening Idle)
+        contentView?.layer?.borderColor = NSColor(red: 0.65, green: 0.33, blue: 0.97, alpha: 0.85).cgColor
+    }
 
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 }
 
 // 3. Application Controller
-class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, SCStreamOutput {
     var panel: CollabPanel!
     var webView: WKWebView!
     var opacity: CGFloat = 1.0
     var questionBuffer: String = ""
+
+    // Live Audio Tap & VAD Properties
+    var isAudioListening = false
+    var audioStream: SCStream?
+    let audioQueue = DispatchQueue(label: "com.swikar.collab.audio", qos: .userInitiated)
+    var audioSamples: [Float] = []
+    var isSpeaking = false
+    var speechDuration: Double = 0
+    var silenceDuration: Double = 0
+    var isTranscribing = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -97,6 +110,243 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         webView.evaluateJavaScript(cleanupCSS, completionHandler: nil)
     }
 
+    // 4. Live Audio Tap Toggle & ScreenCaptureKit Pipeline
+    func toggleAudioListening() {
+        isAudioListening.toggle()
+        if isAudioListening {
+            // Hot state: Vivid Emerald border
+            panel.contentView?.layer?.borderColor = NSColor(red: 0.06, green: 0.72, blue: 0.51, alpha: 0.95).cgColor
+            panel.contentView?.layer?.borderWidth = 2.0
+            print("🎙️ Audio Tap: ACTIVE (Listening to Interviewer Output)")
+            startAudioStreamIfNeeded()
+        } else {
+            // Idle state: Revert to Neon Violet border
+            panel.contentView?.layer?.borderColor = NSColor(red: 0.65, green: 0.33, blue: 0.97, alpha: 0.85).cgColor
+            panel.contentView?.layer?.borderWidth = 1.5
+            print("🔇 Audio Tap: PAUSED")
+        }
+    }
+
+    func startAudioStreamIfNeeded() {
+        guard audioStream == nil else { return }
+        Task {
+            do {
+                let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+                guard let disp = content.displays.first else { return }
+                
+                let myPID = ProcessInfo.processInfo.processIdentifier
+                let excludedWindows = content.windows.filter { $0.owningApplication?.processID == myPID }
+
+                let filter = SCContentFilter(display: disp, excludingWindows: excludedWindows)
+                let cfg = SCStreamConfiguration()
+                cfg.capturesAudio = true
+                cfg.sampleRate = 16000
+                cfg.channelCount = 1
+                cfg.excludesCurrentProcessAudio = true
+                cfg.width = 100
+                cfg.height = 100
+                cfg.minimumFrameInterval = CMTime(value: 1, timescale: 1)
+
+                let stream = SCStream(filter: filter, configuration: cfg, delegate: nil)
+                try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: audioQueue)
+                try await stream.startCapture()
+                self.audioStream = stream
+                print("⚡ ScreenCaptureKit Audio Stream Initialized")
+            } catch {
+                print("❌ Audio Stream Failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    // 5. Audio Buffer Ingestion & Voice Activity Detection (VAD)
+    func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
+        guard type == .audio, isAudioListening, !isTranscribing else { return }
+
+        guard let formatDesc = CMSampleBufferGetFormatDescription(sampleBuffer),
+              let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(formatDesc)?.pointee else { return }
+
+        var blockBuffer: CMBlockBuffer?
+        var audioBufferList = AudioBufferList()
+        let status = CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
+            sampleBuffer,
+            bufferListSizeNeededOut: nil,
+            bufferListOut: &audioBufferList,
+            bufferListSize: MemoryLayout<AudioBufferList>.size,
+            blockBufferAllocator: nil,
+            blockBufferMemoryAllocator: nil,
+            flags: 0, // Flag resolved: 0 is standard for reading the retained block buffer
+            blockBufferOut: &blockBuffer
+        )
+        guard status == noErr else { return }
+
+        var chunk: [Float] = []
+        let buffers = UnsafeMutableAudioBufferListPointer(&audioBufferList)
+        for buf in buffers {
+            guard let data = buf.mData else { continue }
+            let bytes = Int(buf.mDataByteSize)
+            if asbd.mFormatFlags & kAudioFormatFlagIsFloat != 0 {
+                let floatCount = bytes / MemoryLayout<Float>.size
+                let ptr = data.assumingMemoryBound(to: Float.self)
+                chunk.append(contentsOf: UnsafeBufferPointer(start: ptr, count: floatCount))
+            } else if asbd.mBitsPerChannel == 16 {
+                let intCount = bytes / MemoryLayout<Int16>.size
+                let ptr = data.assumingMemoryBound(to: Int16.self)
+                for i in 0..<intCount {
+                    chunk.append(Float(ptr[i]) / 32768.0)
+                }
+            }
+        }
+
+        guard !chunk.isEmpty else { return }
+
+        var sumSquares: Float = 0
+        for s in chunk { sumSquares += s * s }
+        let rms = sqrt(sumSquares / Float(chunk.count))
+        let isSilent = rms < 0.015
+        let chunkDuration = Double(chunk.count) / 16000.0
+
+        if !isSilent {
+            if !isSpeaking {
+                isSpeaking = true
+                speechDuration = 0
+            }
+            silenceDuration = 0
+            speechDuration += chunkDuration
+            audioSamples.append(contentsOf: chunk)
+            if audioSamples.count > 16000 * 30 {
+                audioSamples.removeFirst(16000 * 5)
+            }
+        } else if isSpeaking {
+            silenceDuration += chunkDuration
+            audioSamples.append(contentsOf: chunk)
+            
+            // 1.3s pause detection: Interviewer finished speaking
+            if silenceDuration >= 1.3 {
+                let capturedSpeech = audioSamples
+                let totalSpoken = speechDuration
+                
+                isSpeaking = false
+                speechDuration = 0
+                silenceDuration = 0
+                audioSamples.removeAll()
+
+                if totalSpoken >= 1.5 {
+                    self.isTranscribing = true
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        self.processSpokenQuestion(samples: capturedSpeech)
+                    }
+                }
+            }
+        }
+    }
+
+    // 6. Whisper Neural Engine Transcription & Gemini Dispatch
+    func processSpokenQuestion(samples: [Float]) {
+        defer { self.isTranscribing = false }
+
+        // Safe PCM conversion: uses withUnsafeBytes to eliminate dangling pointer warning
+        var pcmData = Data()
+        pcmData.reserveCapacity(samples.count * 2)
+        for sample in samples {
+            let clamped = max(-1.0, min(1.0, sample))
+            let intVal = Int16(clamped * 32767.0).littleEndian
+            withUnsafeBytes(of: intVal) { pcmData.append(contentsOf: $0) }
+        }
+
+        let wavPath = "/tmp/collab_interviewer.wav"
+        let fullWav = makeWavHeader(dataSize: pcmData.count, sampleRate: 16000) + pcmData
+        do {
+            try fullWav.write(to: URL(fileURLWithPath: wavPath))
+        } catch {
+            print("❌ WAV Write Error: \(error.localizedDescription)")
+            return
+        }
+
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/usr/local/bin/whisper-engine/whisper-cli")
+        proc.arguments = [
+            "-m", "/usr/local/bin/whisper-engine/ggml-base.en.bin",
+            "-f", wavPath,
+            "--no-timestamps",
+            "-nt",
+            "-t", "4"
+        ]
+        let pipe = Pipe()
+        proc.standardOutput = pipe
+        proc.standardError = Pipe()
+
+        do {
+            try proc.run()
+            proc.waitUntilExit()
+
+            let outData = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let rawText = String(data: outData, encoding: .utf8) else { return }
+
+            let cleaned = rawText.replacingOccurrences(of: "[BLANK_AUDIO]", with: "")
+                                 .replacingOccurrences(of: "(applause)", with: "")
+                                 .replacingOccurrences(of: "(music)", with: "")
+                                 .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard cleaned.count >= 10 else { return }
+            print("🎯 Interviewer Question Detected: \"\(cleaned)\"")
+
+            let prompt = """
+            The interviewer just verbally asked this question in our live technical/system design session:
+            "\(cleaned)"
+
+            Provide a concise, senior-level response formatted STRICTLY for me to glance at and speak out loud naturally:
+
+            ### 1. DIRECT 1-SENTENCE ANSWER (Say this immediately)
+            A direct, confident answer to establish authority and buy 5 seconds.
+
+            ### 2. CORE TALKING POINTS (3 bullets maximum)
+            - Architecture / Data Structure / Algorithm choice and the fundamental trade-off.
+            - Component interaction / scaling strategy (e.g., partitioning, caching, indexing).
+            - Bottleneck mitigation (e.g., backpressure, write buffers, read replicas).
+
+            ### 3. CONCRETE METRICS / SCALE
+            Provide 2 realistic numbers, scale bounds, or Big-O complexities to mention out loud.
+
+            ### 4. COLLABORATIVE FOLLOW-UP
+            1 proactive technical question to throw back to the interviewer to keep it interactive.
+            """
+
+            DispatchQueue.main.async {
+                self.sendToGemini(prompt)
+            }
+        } catch {
+            print("❌ Whisper Execution Error: \(error.localizedDescription)")
+        }
+    }
+
+    func makeWavHeader(dataSize: Int, sampleRate: Int = 16000) -> Data {
+        var header = Data()
+        header.append(contentsOf: "RIFF".utf8)
+        var chunkSize = UInt32(36 + dataSize).littleEndian
+        header.append(Data(bytes: &chunkSize, count: 4))
+        header.append(contentsOf: "WAVE".utf8)
+        header.append(contentsOf: "fmt ".utf8)
+        var subchunk1Size = UInt32(16).littleEndian
+        header.append(Data(bytes: &subchunk1Size, count: 4))
+        var audioFormat = UInt16(1).littleEndian
+        header.append(Data(bytes: &audioFormat, count: 2))
+        var numChannels = UInt16(1).littleEndian
+        header.append(Data(bytes: &numChannels, count: 2))
+        var sRate = UInt32(sampleRate).littleEndian
+        header.append(Data(bytes: &sRate, count: 4))
+        var byteRate = UInt32(sampleRate * 1 * 2).littleEndian
+        header.append(Data(bytes: &byteRate, count: 4))
+        var blockAlign = UInt16(2).littleEndian
+        header.append(Data(bytes: &blockAlign, count: 2))
+        var bitsPerSample = UInt16(16).littleEndian
+        header.append(Data(bytes: &bitsPerSample, count: 2))
+        header.append(contentsOf: "data".utf8)
+        var subchunk2Size = UInt32(dataSize).littleEndian
+        header.append(Data(bytes: &subchunk2Size, count: 4))
+        return header
+    }
+
+    // 7. Background Full-Screen Ingestion Engine
     func mergeTextChunks(top: String, bottom: String) -> String {
         let topLines = top.components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         let bottomLines = bottom.components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
@@ -117,22 +367,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         return (topLines + nonOverlappingBottom).joined(separator: "\n")
     }
 
-    // 4. Background Full-Screen Ingestion Engine (Single-Shot & Append)
     func runOCR(isAppend: Bool = false) {
         Task {
             do {
                 let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-                guard let disp = content.displays.first else {
-                    print("❌ ScreenCaptureKit: No active display found.")
-                    return
-                }
+                guard let disp = content.displays.first else { return }
 
-                // Strip the overlay itself so it never captures its own UI
                 let myPID = ProcessInfo.processInfo.processIdentifier
                 let excludedWindows = content.windows.filter { $0.owningApplication?.processID == myPID }
 
                 let cfg = SCStreamConfiguration()
-                // Capture the entire display buffer (no rigid crop boxes)
                 cfg.width = Int(disp.width)
                 cfg.height = Int(disp.height)
                 cfg.showsCursor = false
@@ -151,20 +395,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
                     .joined(separator: "\n")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
 
-                guard !text.isEmpty else {
-                    print("⚠️ OCR completed, but detected no text on display.")
-                    return
-                }
+                guard !text.isEmpty else { return }
 
                 var finalScreenDump = text
 
                 if isAppend && !self.questionBuffer.isEmpty {
                     finalScreenDump = self.mergeTextChunks(top: self.questionBuffer, bottom: text)
                     self.questionBuffer = ""
-                    print("⚡ Merged Multi-Part Screen Dump (\(finalScreenDump.count) chars). Sending to Gemini...")
                 } else {
                     self.questionBuffer = text
-                    print("⚡ Captured Full Screen (\(text.count) chars).")
                 }
 
                 let payload = """
@@ -199,7 +438,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
                 """
                 DispatchQueue.main.async { self.sendToGemini(payload) }
             } catch {
-                print("❌ ScreenCaptureKit / Vision Error: \(error.localizedDescription)")
+                print("❌ OCR Error: \(error.localizedDescription)")
             }
         }
     }
@@ -233,7 +472,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         webView.evaluateJavaScript(js, completionHandler: nil)
     }
 
-    // 5. Global Hotkeys with Accidental Suppression
+    // 8. Global Hotkeys with Dedicated Audio Trigger
     func setupHotkeys() {
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         InstallEventHandler(GetApplicationEventTarget(), { (_, theEvent, userData) -> OSStatus in
@@ -262,18 +501,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             (13, kVK_ANSI_2),          // Option + 2 : Snap Top Right Corner
             (14, kVK_ANSI_3),          // Option + 3 : Taller & Narrower
             (15, kVK_ANSI_4),          // Option + 4 : Wider & Shorter
-            (16, kVK_ANSI_P)           // Option + P : Append Part 2 Scan
+            (16, kVK_ANSI_P),          // Option + P : Append Part 2 Scan
+            (17, kVK_ANSI_A)           // Option + A : Toggle Live Audio Listener
         ]
 
         for (id, code) in binds {
-            let hID = EventHotKeyID(signature: OSType(0x434F), id: id) // "CO" signature
+            let hID = EventHotKeyID(signature: OSType(0x434F), id: id)
             var ref: EventHotKeyRef?
             RegisterEventHotKey(UInt32(code), opt, hID, GetApplicationEventTarget(), 0, &ref)
         }
 
-        // Accidental Key Interceptor (Suppresses special symbol leaks in shared editor)
+        // Accidental Key Interceptor (Excludes 'A' as it triggers our audio toggle)
         let swallowKeys: [Int] = [
-            kVK_ANSI_A, kVK_ANSI_B, kVK_ANSI_C, kVK_ANSI_D, kVK_ANSI_E, kVK_ANSI_F,
+            kVK_ANSI_B, kVK_ANSI_C, kVK_ANSI_D, kVK_ANSI_E, kVK_ANSI_F,
             kVK_ANSI_G, kVK_ANSI_H, kVK_ANSI_I, kVK_ANSI_J, kVK_ANSI_K, kVK_ANSI_L,
             kVK_ANSI_M, kVK_ANSI_N, kVK_ANSI_R, kVK_ANSI_T, kVK_ANSI_U, kVK_ANSI_W,
             kVK_ANSI_X, kVK_ANSI_Y, kVK_ANSI_5, kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8,
@@ -298,13 +538,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         case 6:  scaleWindow(delta: 0.92)
         case 7, 8: opacity = max(0.2, min(1.0, opacity + (id == 8 ? 0.15 : -0.15))); panel.alphaValue = opacity
         case 9, 10: webView.evaluateJavaScript("window.scrollBy({top: \(id == 9 ? 400 : -400), behavior: 'smooth'})", completionHandler: nil)
-        case 11: runOCR(isAppend: false) // Option + O : Full-screen scan
+        case 11: runOCR(isAppend: false)
         case 12: snap(.leftEdgeFlush)
         case 13: snap(.topRight)
-        case 14: adjustShape(dw: -50, dh: +60) // Option + 3 : Taller & Narrower
-        case 15: adjustShape(dw: +60, dh: -50) // Option + 4 : Wider & Shorter
-        case 16: runOCR(isAppend: true)  // Option + P : Full-screen scroll append
-        case 9999: break // Suppress accidental symbol leaks safely
+        case 14: adjustShape(dw: -50, dh: +60)
+        case 15: adjustShape(dw: +60, dh: -50)
+        case 16: runOCR(isAppend: true)
+        case 17: toggleAudioListening()
+        case 9999: break
         default: break
         }
     }
