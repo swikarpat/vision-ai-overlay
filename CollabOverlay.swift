@@ -290,25 +290,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, SCStre
             guard cleaned.count >= 10 else { return }
             print("🎯 Interviewer Question Detected: \"\(cleaned)\"")
 
-            let prompt = """
+let prompt = """
             The interviewer just verbally asked this question in our live technical/system design session:
             "\(cleaned)"
 
-            Provide a concise, senior-level response formatted STRICTLY for me to glance at and speak out loud naturally:
+            Format your response into these exact tiers:
 
-            ### 1. DIRECT 1-SENTENCE ANSWER (Say this immediately)
-            A direct, confident answer to establish authority and buy 5 seconds.
+            ### 1. QUICK DIRECT ANSWER (Say this first — 2 to 3 sentences)
+            Give the definitive, technically precise answer immediately. State the core concept, mechanism, or architectural decision clearly so it stands completely on its own without needing further explanation.
 
-            ### 2. CORE TALKING POINTS (3 bullets maximum)
-            - Architecture / Data Structure / Algorithm choice and the fundamental trade-off.
-            - Component interaction / scaling strategy (e.g., partitioning, caching, indexing).
-            - Bottleneck mitigation (e.g., backpressure, write buffers, read replicas).
+            ### 2. DEEP DIVE & ELABORATION (Read this only if they ask to elaborate)
+            - How It Works Under the Hood: The internal mechanics, data structures, or protocol details.
+            - Key Trade-offs & Edge Cases: Concrete trade-offs (e.g., latency vs. consistency, write amplification, memory footprint).
+            - Production Numbers & Metrics: Specific real-world numbers, Big-O bounds, or scaling thresholds.
 
-            ### 3. CONCRETE METRICS / SCALE
-            Provide 2 realistic numbers, scale bounds, or Big-O complexities to mention out loud.
-
-            ### 4. COLLABORATIVE FOLLOW-UP
-            1 proactive technical question to throw back to the interviewer to keep it interactive.
+            ### 3. CONVERSATIONAL CHECK-IN (1 sentence)
+            A quick follow-up to check if they want to go deeper (e.g., "Do you want me to drill into the replication lag mitigation, or move on to API design?").
             """
 
             DispatchQueue.main.async {
