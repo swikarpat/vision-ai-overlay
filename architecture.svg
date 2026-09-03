@@ -1,240 +1,289 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 840" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1020 920" width="100%" height="100%">
   <defs>
-    <!-- Background Gradient -->
-    <radialGradient id="bg-radial" cx="50%" cy="50%" r="70%">
-      <stop offset="0%" stop-color="#0F172A" />
-      <stop offset="100%" stop-color="#020617" />
+    <!-- Background Radial Gradient -->
+    <radialGradient id="bg-canvas" cx="50%" cy="50%" r="75%">
+      <stop offset="0%" stop-color="#0B1120" />
+      <stop offset="60%" stop-color="#030712" />
+      <stop offset="100%" stop-color="#000000" />
     </radialGradient>
 
-    <!-- Photon & Glow Filters -->
+    <!-- Glow Filters -->
     <filter id="glow-cyan" x="-30%" y="-30%" width="160%" height="160%">
       <feGaussianBlur stdDeviation="4" result="blur" />
-      <feMerge>
-        <feMergeNode in="blur" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
+      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
     </filter>
-
-    <filter id="glow-blue" x="-30%" y="-30%" width="160%" height="160%">
+    <filter id="glow-emerald" x="-30%" y="-30%" width="160%" height="160%">
       <feGaussianBlur stdDeviation="4" result="blur" />
-      <feMerge>
-        <feMergeNode in="blur" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
+      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
     </filter>
-
-    <filter id="glow-purple" x="-30%" y="-30%" width="160%" height="160%">
+    <filter id="glow-violet" x="-30%" y="-30%" width="160%" height="160%">
       <feGaussianBlur stdDeviation="5" result="blur" />
-      <feMerge>
-        <feMergeNode in="blur" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
+      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
     </filter>
-
     <filter id="glow-amber" x="-30%" y="-30%" width="160%" height="160%">
       <feGaussianBlur stdDeviation="4" result="blur" />
-      <feMerge>
-        <feMergeNode in="blur" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
+      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
     </filter>
-
-    <filter id="glow-emerald" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="5" result="blur" />
-      <feMerge>
-        <feMergeNode in="blur" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
+    <filter id="glow-white" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
     </filter>
-
-    <filter id="photon-glow" x="-50%" y="-50%" width="200%" height="200%">
+    <filter id="photon-glow" x="-60%" y="-60%" width="220%" height="220%">
       <feGaussianBlur stdDeviation="3.5" result="blur" />
-      <feMerge>
-        <feMergeNode in="blur" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
+      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
     </filter>
 
-    <!-- Arrowhead Marker -->
+    <!-- Wire Arrowhead -->
     <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748B" />
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#475569" />
     </marker>
   </defs>
 
   <style>
-    .node-box {
-      rx: 12px;
-      stroke-width: 1.5px;
-      transition: all 0.3s ease;
-    }
-    .label-title {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "SF Pro Display", sans-serif;
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-    }
-    .label-sub {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "SF Pro Text", sans-serif;
-      font-size: 11.5px;
-      fill: #94A3B8;
-    }
-    .flow-label {
-      font-family: "SF Mono", Menlo, Monaco, "Courier New", monospace;
-      font-size: 11px;
-      font-weight: 600;
-      fill: #38BDF8;
-      letter-spacing: 0.3px;
-    }
-    .data-wire {
-      stroke: #334155;
-      stroke-width: 2px;
-      stroke-dasharray: 4, 4;
-      animation: wireDash 1.2s linear infinite;
-    }
-    @keyframes wireDash {
-      to { stroke-dashoffset: -8; }
-    }
+    .node-box { rx: 10px; stroke-width: 1.5px; }
+    .label-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13.5px; font-weight: 700; }
+    .label-sub { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; fill: #94A3B8; }
+    .code-tag { font-family: "SF Mono", Menlo, Monaco, monospace; font-size: 10.5px; font-weight: 600; }
+    .wire { stroke: #334155; stroke-width: 1.8px; stroke-dasharray: 4, 4; animation: dash 1.2s linear infinite; }
+    @keyframes dash { to { stroke-dashoffset: -8; } }
   </style>
 
-  <!-- Deep Canvas Background -->
-  <rect width="860" height="840" fill="url(#bg-radial)" rx="16" />
+  <!-- Canvas Background -->
+  <rect width="1020" height="920" fill="url(#bg-canvas)" rx="16" />
 
-  <!-- Background Decorative Grid Lines -->
-  <g opacity="0.06" stroke="#94A3B8" stroke-width="1">
-    <line x1="0" y1="140" x2="860" y2="140" />
-    <line x1="0" y1="280" x2="860" y2="280" />
-    <line x1="0" y1="430" x2="860" y2="430" />
-    <line x1="0" y1="580" x2="860" y2="580" />
-    <line x1="0" y1="720" x2="860" y2="720" />
-    <line x1="215" y1="0" x2="215" y2="840" />
-    <line x1="430" y1="0" x2="430" y2="840" />
-    <line x1="645" y1="0" x2="645" y2="840" />
+  <!-- Background Decorative Grid -->
+  <g opacity="0.05" stroke="#94A3B8" stroke-width="1">
+    <line x1="0" y1="120" x2="1020" y2="120" /><line x1="0" y1="240" x2="1020" y2="240" />
+    <line x1="0" y1="360" x2="1020" y2="360" /><line x1="0" y1="520" x2="1020" y2="520" />
+    <line x1="0" y1="680" x2="1020" y2="680" /><line x1="0" y1="800" x2="1020" y2="800" />
+    <line x1="260" y1="0" x2="260" y2="920" /><line x1="510" y1="0" x2="510" y2="920" /><line x1="760" y1="0" x2="760" y2="920" />
   </g>
 
-  <!-- ==================== CONNECTOR PATHS ==================== -->
-  <path id="path1" d="M 430 105 L 430 185" class="data-wire" marker-end="url(#arrow)" />
-  <path id="path2" d="M 430 260 L 430 340" class="data-wire" marker-end="url(#arrow)" />
-  <path id="path3" d="M 430 425 L 430 505" class="data-wire" marker-end="url(#arrow)" />
-  <path id="path4" d="M 430 580 L 430 660" class="data-wire" marker-end="url(#arrow)" />
-
-  <!-- Data Flow Payload Tags -->
+  <!-- Category Stream Header Banners -->
   <g>
-    <rect x="445" y="133" width="220" height="24" rx="6" fill="#0F172A" stroke="#1E293B" />
-    <text x="455" y="149" class="flow-label">Raw Display Frame Buffer</text>
+    <rect x="40" y="20" width="430" height="24" rx="5" fill="#0C1A2E" stroke="#1E3A8A" stroke-width="1" />
+    <text x="55" y="36" class="code-tag" fill="#38BDF8">VISUAL STREAM (Spatial Vision &amp; OCR Engine)</text>
 
-    <rect x="445" y="288" width="180" height="24" rx="6" fill="#0F172A" stroke="#1E293B" />
-    <text x="455" y="304" class="flow-label" fill="#60A5FA">Native CGImage Stream</text>
+    <rect x="550" y="20" width="430" height="24" rx="5" fill="#062419" stroke="#065F46" stroke-width="1" />
+    <text x="565" y="36" class="code-tag" fill="#34D399">ACOUSTIC STREAM (ANE STT &amp; VAD Ingestion)</text>
+  </g>
 
-    <rect x="445" y="453" width="235" height="24" rx="6" fill="#0F172A" stroke="#1E293B" />
-    <text x="455" y="469" class="flow-label" fill="#C084FC">Raw Unstructured Text</text>
+  <!-- ==================== FLOW CONNECTOR PATHS ==================== -->
+  <!-- Visual Stream -->
+  <path id="pv1" d="M 255 125 L 255 175" class="wire" marker-end="url(#arrow)" />
+  <path id="pv2" d="M 255 245 L 255 295" class="wire" marker-end="url(#arrow)" />
+  <path id="pv3" d="M 255 365 C 255 415, 410 415, 410 465" class="wire" marker-end="url(#arrow)" />
 
-    <rect x="445" y="608" width="245" height="24" rx="6" fill="#0F172A" stroke="#1E293B" />
-    <text x="455" y="624" class="flow-label" fill="#34D399">Structured Semantic Payload</text>
+  <!-- Acoustic Stream -->
+  <path id="pa1" d="M 765 125 L 765 175" class="wire" marker-end="url(#arrow)" />
+  <path id="pa2" d="M 765 245 L 765 295" class="wire" marker-end="url(#arrow)" />
+  <path id="pa3" d="M 765 365 C 765 415, 610 415, 610 465" class="wire" marker-end="url(#arrow)" />
+
+  <!-- Context Vault to Prompt Synthesizer -->
+  <path id="pvault" d="M 220 515 L 290 515" class="wire" marker-end="url(#arrow)" />
+
+  <!-- Router to Execution Pipeline -->
+  <path id="pe1" d="M 510 565 L 510 625" class="wire" marker-end="url(#arrow)" />
+  <path id="pe2" d="M 510 695 L 510 755" class="wire" marker-end="url(#arrow)" />
+
+  <!-- Wire Payload Badges -->
+  <g>
+    <rect x="268" y="140" width="145" height="18" rx="4" fill="#0F172A" stroke="#1E293B" />
+    <text x="274" y="153" class="code-tag" fill="#38BDF8">Raw CGImage Buffer</text>
+
+    <rect x="778" y="140" width="135" height="18" rx="4" fill="#0F172A" stroke="#1E293B" />
+    <text x="784" y="153" class="code-tag" fill="#34D399">16kHz Mono PCM</text>
+
+    <rect x="268" y="258" width="140" height="18" rx="4" fill="#0F172A" stroke="#1E293B" />
+    <text x="274" y="271" class="code-tag" fill="#818CF8">Raw Line Geometry</text>
+
+    <rect x="778" y="258" width="155" height="18" rx="4" fill="#0F172A" stroke="#1E293B" />
+    <text x="784" y="271" class="code-tag" fill="#10B981">Segmented Speech (>1.3s)</text>
+
+    <rect x="522" y="585" width="170" height="18" rx="4" fill="#0F172A" stroke="#1E293B" />
+    <text x="528" y="598" class="code-tag" fill="#C084FC">4-Mode Structured Payload</text>
+
+    <rect x="522" y="715" width="180" height="18" rx="4" fill="#0F172A" stroke="#1E293B" />
+    <text x="528" y="728" class="code-tag" fill="#E2E8F0">DOM Evaluator Injection</text>
   </g>
 
   <!-- ==================== FLOWING PHOTONS ==================== -->
-  <!-- Stream 1 Photons -->
-  <circle r="4.5" fill="#38BDF8" filter="url(#photon-glow)">
-    <animateMotion path="M 430 105 L 430 185" dur="1.1s" repeatCount="indefinite" />
+  <!-- Visual Photons -->
+  <circle r="4" fill="#38BDF8" filter="url(#photon-glow)">
+    <animateMotion path="M 255 125 L 255 175" dur="1s" repeatCount="indefinite" />
   </circle>
-  <circle r="3" fill="#E0F2FE" filter="url(#photon-glow)">
-    <animateMotion path="M 430 105 L 430 185" dur="1.1s" begin="0.55s" repeatCount="indefinite" />
+  <circle r="4" fill="#818CF8" filter="url(#photon-glow)">
+    <animateMotion path="M 255 245 L 255 295" dur="1s" begin="0.3s" repeatCount="indefinite" />
   </circle>
-
-  <!-- Stream 2 Photons -->
-  <circle r="4.5" fill="#60A5FA" filter="url(#photon-glow)">
-    <animateMotion path="M 430 260 L 430 340" dur="1.1s" begin="0.2s" repeatCount="indefinite" />
-  </circle>
-  <circle r="3" fill="#DBEAFE" filter="url(#photon-glow)">
-    <animateMotion path="M 430 260 L 430 340" dur="1.1s" begin="0.75s" repeatCount="indefinite" />
+  <circle r="4" fill="#60A5FA" filter="url(#photon-glow)">
+    <animateMotion path="M 255 365 C 255 415, 410 415, 410 465" dur="1.2s" begin="0.6s" repeatCount="indefinite" />
   </circle>
 
-  <!-- Stream 3 Photons -->
+  <!-- Acoustic Photons -->
+  <circle r="4" fill="#34D399" filter="url(#photon-glow)">
+    <animateMotion path="M 765 125 L 765 175" dur="1s" repeatCount="indefinite" />
+  </circle>
+  <circle r="4" fill="#10B981" filter="url(#photon-glow)">
+    <animateMotion path="M 765 245 L 765 295" dur="1s" begin="0.3s" repeatCount="indefinite" />
+  </circle>
+  <circle r="4" fill="#059669" filter="url(#photon-glow)">
+    <animateMotion path="M 765 365 C 765 415, 610 415, 610 465" dur="1.2s" begin="0.6s" repeatCount="indefinite" />
+  </circle>
+
+  <!-- Context Vault Photon -->
+  <circle r="3.5" fill="#F59E0B" filter="url(#photon-glow)">
+    <animateMotion path="M 220 515 L 290 515" dur="1.4s" repeatCount="indefinite" />
+  </circle>
+
+  <!-- Execution Pipeline Photons -->
   <circle r="4.5" fill="#C084FC" filter="url(#photon-glow)">
-    <animateMotion path="M 430 425 L 430 505" dur="1.1s" begin="0.4s" repeatCount="indefinite" />
+    <animateMotion path="M 510 565 L 510 625" dur="1.1s" begin="0.2s" repeatCount="indefinite" />
   </circle>
-  <circle r="3" fill="#F3E8FF" filter="url(#photon-glow)">
-    <animateMotion path="M 430 425 L 430 505" dur="1.1s" begin="0.95s" repeatCount="indefinite" />
-  </circle>
-
-  <!-- Stream 4 Photons -->
-  <circle r="4.5" fill="#34D399" filter="url(#photon-glow)">
-    <animateMotion path="M 430 580 L 430 660" dur="1.1s" begin="0.1s" repeatCount="indefinite" />
-  </circle>
-  <circle r="3" fill="#D1FAE5" filter="url(#photon-glow)">
-    <animateMotion path="M 430 580 L 430 660" dur="1.1s" begin="0.65s" repeatCount="indefinite" />
+  <circle r="4.5" fill="#F8FAFC" filter="url(#photon-glow)">
+    <animateMotion path="M 510 695 L 510 755" dur="1.1s" begin="0.7s" repeatCount="indefinite" />
   </circle>
 
-  <!-- ==================== MODULE NODES ==================== -->
+  <!-- ==================== ARCHITECTURE NODES ==================== -->
 
-  <!-- Node 1: macOS WindowServer -->
-  <g transform="translate(130, 30)">
-    <rect width="600" height="75" fill="#0B1329" stroke="#38BDF8" stroke-opacity="0.8" class="node-box" filter="url(#glow-cyan)">
+  <!-- V1: Display Capture Engine -->
+  <g transform="translate(40, 55)">
+    <rect width="430" height="70" fill="#091426" stroke="#38BDF8" stroke-opacity="0.8" class="node-box" filter="url(#glow-cyan)">
       <animate attributeName="stroke-opacity" values="0.4;0.95;0.4" dur="2.4s" repeatCount="indefinite" />
       <animate attributeName="stroke-width" values="1.2;2;1.2" dur="2.4s" repeatCount="indefinite" />
     </rect>
-    <!-- Status LED -->
-    <circle cx="30" cy="38" r="4.5" fill="#38BDF8">
+    <circle cx="22" cy="35" r="4.5" fill="#38BDF8">
       <animate attributeName="opacity" values="1;0.3;1" dur="1.6s" repeatCount="indefinite" />
     </circle>
-    <text x="50" y="34" fill="#F8FAFC" class="label-title">macOS WindowServer</text>
-    <text x="50" y="53" class="label-sub">GPU Hardware Compositor Layer • Isolated Surface (<tspan fill="#38BDF8" font-family="monospace">sharingType = .none</tspan>)</text>
+    <text x="40" y="31" fill="#F8FAFC" class="label-title">ScreenCaptureKit Display Ingest</text>
+    <text x="40" y="49" class="label-sub">Direct Frame Buffer Capture • Window Exclude Filter (<tspan fill="#38BDF8" font-family="monospace">myPID</tspan>)</text>
   </g>
 
-  <!-- Node 2: ScreenCaptureKit -->
-  <g transform="translate(130, 185)">
-    <rect width="600" height="75" fill="#0B1533" stroke="#60A5FA" stroke-opacity="0.8" class="node-box" filter="url(#glow-blue)">
-      <animate attributeName="stroke-opacity" values="0.4;0.95;0.4" dur="2.7s" begin="0.5s" repeatCount="indefinite" />
-      <animate attributeName="stroke-width" values="1.2;2;1.2" dur="2.7s" begin="0.5s" repeatCount="indefinite" />
+  <!-- A1: SCStream Audio Tap -->
+  <g transform="translate(550, 55)">
+    <rect width="430" height="70" fill="#061D15" stroke="#34D399" stroke-opacity="0.8" class="node-box" filter="url(#glow-emerald)">
+      <animate attributeName="stroke-opacity" values="0.4;0.95;0.4" dur="2.6s" repeatCount="indefinite" />
+      <animate attributeName="stroke-width" values="1.2;2;1.2" dur="2.6s" repeatCount="indefinite" />
     </rect>
-    <!-- Status LED -->
-    <circle cx="30" cy="38" r="4.5" fill="#60A5FA">
+    <circle cx="22" cy="35" r="4.5" fill="#34D399">
       <animate attributeName="opacity" values="1;0.3;1" dur="1.8s" repeatCount="indefinite" />
     </circle>
-    <text x="50" y="34" fill="#F8FAFC" class="label-title">ScreenCaptureKit Engine</text>
-    <text x="50" y="53" class="label-sub">Direct Display Ingestion • Real-Time PID &amp; Window Exclusion Filtering</text>
+    <text x="40" y="31" fill="#F8FAFC" class="label-title">SCStream System Audio Tap (Kernel Mixer)</text>
+    <text x="40" y="49" class="label-sub">Zero-Driver Intercept • Speaker Output Only • Microphone Isolated</text>
   </g>
 
-  <!-- Node 3: Apple Vision Framework -->
-  <g transform="translate(130, 340)">
-    <rect width="600" height="85" fill="#140E2E" stroke="#A855F7" stroke-opacity="0.8" class="node-box" filter="url(#glow-purple)">
-      <animate attributeName="stroke-opacity" values="0.4;1;0.4" dur="2.2s" begin="0.8s" repeatCount="indefinite" />
-      <animate attributeName="stroke-width" values="1.2;2.2;1.2" dur="2.2s" begin="0.8s" repeatCount="indefinite" />
+  <!-- V2: Apple Vision OCR Engine -->
+  <g transform="translate(40, 175)">
+    <rect width="430" height="70" fill="#0F122E" stroke="#818CF8" stroke-opacity="0.8" class="node-box" filter="url(#glow-cyan)">
+      <animate attributeName="stroke-opacity" values="0.4;0.95;0.4" dur="2.2s" begin="0.4s" repeatCount="indefinite" />
     </rect>
-    <!-- Status LED -->
-    <circle cx="30" cy="43" r="4.5" fill="#C084FC">
-      <animate attributeName="opacity" values="1;0.2;1" dur="1.2s" repeatCount="indefinite" />
+    <circle cx="22" cy="35" r="4.5" fill="#818CF8">
+      <animate attributeName="opacity" values="1;0.2;1" dur="1.3s" repeatCount="indefinite" />
     </circle>
-    <text x="50" y="34" fill="#F8FAFC" class="label-title">Apple Vision Framework (ANE Accelerated)</text>
-    <text x="50" y="53" class="label-sub">Offline Neural Character Recognition • Transformer/CNN Spatial Transcription</text>
-    <text x="50" y="69" class="label-sub" fill="#C084FC">⚡ Sub-100ms Inference Window on Apple Silicon Neural Engine</text>
+    <text x="40" y="31" fill="#F8FAFC" class="label-title">Apple Vision Framework (ANE Accelerated)</text>
+    <text x="40" y="49" class="label-sub">VNRecognizeTextRequest • Accurate Level • Sub-80ms In-Memory OCR</text>
   </g>
 
-  <!-- Node 4: Deduplication & Stitch Engine -->
-  <g transform="translate(130, 505)">
-    <rect width="600" height="75" fill="#1C140A" stroke="#F59E0B" stroke-opacity="0.8" class="node-box" filter="url(#glow-amber)">
-      <animate attributeName="stroke-opacity" values="0.4;0.95;0.4" dur="2.5s" begin="0.3s" repeatCount="indefinite" />
-      <animate attributeName="stroke-width" values="1.2;2;1.2" dur="2.5s" begin="0.3s" repeatCount="indefinite" />
+  <!-- A2: RMS Energy VAD Detector -->
+  <g transform="translate(550, 175)">
+    <rect width="430" height="70" fill="#062118" stroke="#10B981" stroke-opacity="0.8" class="node-box" filter="url(#glow-emerald)">
+      <animate attributeName="stroke-opacity" values="0.4;0.95;0.4" dur="2.3s" begin="0.5s" repeatCount="indefinite" />
     </rect>
-    <!-- Status LED -->
-    <circle cx="30" cy="38" r="4.5" fill="#F59E0B">
+    <circle cx="22" cy="35" r="4.5" fill="#10B981">
+      <animate attributeName="opacity" values="1;0.2;1" dur="1.5s" repeatCount="indefinite" />
+    </circle>
+    <text x="40" y="31" fill="#F8FAFC" class="label-title">RMS Energy Voice Activity Detector (VAD)</text>
+    <text x="40" y="49" class="label-sub">Silence Threshold (RMS &lt; 0.015) • Dynamic 1.3s Turn-Completion Gate</text>
+  </g>
+
+  <!-- V3: Spatial Stitch & Deduplication -->
+  <g transform="translate(40, 295)">
+    <rect width="430" height="70" fill="#0B1B36" stroke="#60A5FA" stroke-opacity="0.8" class="node-box" filter="url(#glow-cyan)">
+      <animate attributeName="stroke-opacity" values="0.4;0.95;0.4" dur="2.7s" begin="0.7s" repeatCount="indefinite" />
+    </rect>
+    <circle cx="22" cy="35" r="4.5" fill="#60A5FA">
+      <animate attributeName="opacity" values="1;0.3;1" dur="1.7s" repeatCount="indefinite" />
+    </circle>
+    <text x="40" y="31" fill="#F8FAFC" class="label-title">Deduplication &amp; Scroll Stitch Engine</text>
+    <text x="40" y="49" class="label-sub">Multi-Part Boundary Overlap (<tspan fill="#60A5FA" font-family="monospace">Opt+O / Opt+P</tspan>) • Boilerplate Extraction</text>
+  </g>
+
+  <!-- A3: Quantized Whisper Engine -->
+  <g transform="translate(550, 295)">
+    <rect width="430" height="70" fill="#04271E" stroke="#059669" stroke-opacity="0.8" class="node-box" filter="url(#glow-emerald)">
+      <animate attributeName="stroke-opacity" values="0.4;0.95;0.4" dur="2.1s" begin="0.6s" repeatCount="indefinite" />
+    </rect>
+    <circle cx="22" cy="35" r="4.5" fill="#059669">
       <animate attributeName="opacity" values="1;0.3;1" dur="1.4s" repeatCount="indefinite" />
     </circle>
-    <text x="50" y="34" fill="#F8FAFC" class="label-title">Deduplication &amp; Stitching Engine</text>
-    <text x="50" y="53" class="label-sub">Suffix-Prefix Boundary Overlap Matching • Seamless Scroll Reconciliation</text>
+    <text x="40" y="31" fill="#F8FAFC" class="label-title">Quantized Whisper CoreML Engine (Apple Neural Engine)</text>
+    <text x="40" y="49" class="label-sub">whisper.cpp (ggml-base.en) • Hardware Metal Acceleration • Tech Lexicon</text>
   </g>
 
-  <!-- Node 5: WebKit & Multimodal LLM -->
-  <g transform="translate(130, 660)">
-    <rect width="600" height="75" fill="#061A16" stroke="#10B981" stroke-opacity="0.8" class="node-box" filter="url(#glow-emerald)">
-      <animate attributeName="stroke-opacity" values="0.4;1;0.4" dur="2.1s" begin="0.6s" repeatCount="indefinite" />
-      <animate attributeName="stroke-width" values="1.2;2.2;1.2" dur="2.1s" begin="0.6s" repeatCount="indefinite" />
+  <!-- Context Vault (Ground Truth Side Ingestion) -->
+  <g transform="translate(40, 465)">
+    <rect width="180" height="100" fill="#1C1305" stroke="#F59E0B" stroke-opacity="0.8" class="node-box" filter="url(#glow-amber)">
+      <animate attributeName="stroke-opacity" values="0.4;1;0.4" dur="2.8s" repeatCount="indefinite" />
     </rect>
-    <!-- Status LED -->
-    <circle cx="30" cy="38" r="4.5" fill="#34D399">
+    <circle cx="20" cy="26" r="4" fill="#F59E0B">
+      <animate attributeName="opacity" values="1;0.3;1" dur="1.6s" repeatCount="indefinite" />
+    </circle>
+    <text x="32" y="30" fill="#F8FAFC" class="label-title" font-size="12px">Context Vault</text>
+    <text x="16" y="52" class="code-tag" fill="#FBBF24">ContextVault.md</text>
+    <text x="16" y="70" class="label-sub" font-size="10px">Flagship Projects A/B/C</text>
+    <text x="16" y="85" class="label-sub" font-size="10px">STAR Incident Stories</text>
+  </g>
+
+  <!-- M1: Dynamic 4-Mode Cognitive Router -->
+  <g transform="translate(290, 465)">
+    <rect width="690" height="100" fill="#170D2C" stroke="#A855F7" stroke-opacity="0.8" class="node-box" filter="url(#glow-violet)">
+      <animate attributeName="stroke-opacity" values="0.5;1;0.5" dur="2.3s" repeatCount="indefinite" />
+      <animate attributeName="stroke-width" values="1.2;2.2;1.2" dur="2.3s" repeatCount="indefinite" />
+    </rect>
+    <circle cx="25" cy="28" r="4.5" fill="#A855F7">
+      <animate attributeName="opacity" values="1;0.2;1" dur="1.2s" repeatCount="indefinite" />
+    </circle>
+    <text x="45" y="32" fill="#F8FAFC" class="label-title">4-Mode Dynamic Prompt Router &amp; Steering Controller</text>
+    
+    <!-- Mode Switch Chips -->
+    <g transform="translate(45, 48)">
+      <rect x="0" y="0" width="138" height="24" rx="4" fill="#0C1B2A" stroke="#38BDF8" />
+      <text x="8" y="16" class="code-tag" fill="#38BDF8">Opt+1: Coding/DSA</text>
+
+      <rect x="148" y="0" width="148" height="24" rx="4" fill="#1E1035" stroke="#A855F7" />
+      <text x="156" y="16" class="code-tag" fill="#C084FC">Opt+2: System/ASCII</text>
+
+      <rect x="306" y="0" width="156" height="24" rx="4" fill="#261A07" stroke="#F59E0B" />
+      <text x="314" y="16" class="code-tag" fill="#FBBF24">Opt+3: Project Deep</text>
+
+      <rect x="472" y="0" width="158" height="24" rx="4" fill="#240B13" stroke="#F43F5E" />
+      <text x="480" y="16" class="code-tag" fill="#FB7185">Opt+4: Behavioral STAR</text>
+    </g>
+    <text x="45" y="90" class="label-sub">Steering Hotkeys: <tspan fill="#C084FC" font-family="monospace">Opt+T</tspan> (15s TL;DR) • <tspan fill="#C084FC" font-family="monospace">Opt+E</tspan> (Deep Dive) • <tspan fill="#C084FC" font-family="monospace">Opt+R</tspan> (Silent Session Purge)</text>
+  </g>
+
+  <!-- E1: WebKit Headless Runtime & LLM -->
+  <g transform="translate(160, 625)">
+    <rect width="700" height="70" fill="#081A22" stroke="#2DD4BF" stroke-opacity="0.8" class="node-box" filter="url(#glow-cyan)">
+      <animate attributeName="stroke-opacity" values="0.4;0.95;0.4" dur="2.5s" begin="0.3s" repeatCount="indefinite" />
+    </rect>
+    <circle cx="25" cy="35" r="4.5" fill="#2DD4BF">
       <animate attributeName="opacity" values="1;0.25;1" dur="1.5s" repeatCount="indefinite" />
     </circle>
-    <text x="50" y="34" fill="#F8FAFC" class="label-title">WebKit Runtime &amp; Generative LLM</text>
-    <text x="50" y="53" class="label-sub">Silent DOM Injection Payload • Multimodal Algorithmic Solution Synthesis</text>
+    <text x="45" y="31" fill="#F8FAFC" class="label-title">WebKit Headless Host &amp; Generative Session Runtime</text>
+    <text x="45" y="50" class="label-sub">Isolated Session Storage • Silent DOM Dispatch (<tspan fill="#2DD4BF" font-family="monospace">contenteditable</tspan>) • Anti-Detection Flags</text>
+  </g>
+
+  <!-- E2: Hardware Ghost HUD Panel -->
+  <g transform="translate(160, 755)">
+    <rect width="700" height="75" fill="#0F172A" stroke="#F8FAFC" stroke-opacity="0.85" class="node-box" filter="url(#glow-white)">
+      <animate attributeName="stroke-opacity" values="0.4;1;0.4" dur="2.9s" begin="0.1s" repeatCount="indefinite" />
+      <animate attributeName="stroke-width" values="1.2;2.4;1.2" dur="2.9s" begin="0.1s" repeatCount="indefinite" />
+    </rect>
+    <circle cx="25" cy="38" r="4.5" fill="#F8FAFC">
+      <animate attributeName="opacity" values="1;0.2;1" dur="1.1s" repeatCount="indefinite" />
+    </circle>
+    <text x="45" y="33" fill="#F8FAFC" class="label-title">Hardware Ghost HUD Panel (<tspan fill="#38BDF8">sharingType = .none</tspan>)</text>
+    <text x="45" y="52" class="label-sub">Zero-Leak Glass Overlay • 100% Invisible in Screen Shares • Click-Through Ghost HUD</text>
+    <text x="45" y="67" class="label-sub" fill="#FBBF24">⚡ Interactive Mode (<tspan fill="#F8FAFC" font-family="monospace">Opt+I</tspan>): White Border, Direct Model Switching &amp; Window Repositioning</text>
   </g>
 </svg>
