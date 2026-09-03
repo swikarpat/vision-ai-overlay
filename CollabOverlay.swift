@@ -11,7 +11,7 @@ let lockPath = "/tmp/com.swikar.collaboverlay.lock"
 let lock = open(lockPath, O_CREAT | O_WRONLY, 0o600)
 if lock == -1 || flock(lock, LOCK_EX | LOCK_NB) != 0 { exit(0) }
 
-// 2. Hardware-Level Ghost HUD (Excluded from Screen Shares & WebRTC)
+// 2. Hardware-Level Ghost HUD
 class CollabPanel: NSPanel {
     init(rect: NSRect) {
         super.init(
@@ -31,8 +31,6 @@ class CollabPanel: NSPanel {
         contentView?.layer?.cornerRadius = 12
         contentView?.layer?.masksToBounds = true
         contentView?.layer?.borderWidth = 1.5
-        // Default State: Neon Violet border (Audio Listening Idle)
-        contentView?.layer?.borderColor = NSColor(red: 0.65, green: 0.33, blue: 0.97, alpha: 0.85).cgColor
     }
 
     override var canBecomeKey: Bool { false }
@@ -45,6 +43,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, SCStre
     var webView: WKWebView!
     var opacity: CGFloat = 1.0
     var questionBuffer: String = ""
+
+    enum AssistantMode {
+        case coding          // Option + 1: Electric Cyan
+        case systemDesign    // Option + 2: Neon Violet
+        case projectDeepDive // Option + 3: Amber Gold
+        case behavioral      // Option + 4: Rose Red
+
+        var borderColor: CGColor {
+            switch self {
+            case .coding:          return NSColor(red: 0.22, green: 0.74, blue: 0.97, alpha: 0.9).cgColor
+            case .systemDesign:    return NSColor(red: 0.65, green: 0.33, blue: 0.97, alpha: 0.9).cgColor
+            case .projectDeepDive: return NSColor(red: 0.96, green: 0.62, blue: 0.04, alpha: 0.9).cgColor
+            case .behavioral:      return NSColor(red: 0.96, green: 0.25, blue: 0.37, alpha: 0.9).cgColor
+            }
+        }
+    }
+
+    var currentMode: AssistantMode = .coding
 
     // Live Audio Tap & VAD Properties
     var isAudioListening = false
@@ -61,6 +77,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, SCStre
         let s = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         panel = CollabPanel(rect: NSRect(x: s.maxX - 560, y: s.maxY - 740, width: 540, height: 720))
         panel.alphaValue = opacity
+        updateBorderColor()
 
         let cfg = WKWebViewConfiguration()
         cfg.websiteDataStore = .default()
@@ -110,19 +127,58 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, SCStre
         webView.evaluateJavaScript(cleanupCSS, completionHandler: nil)
     }
 
-    // 4. Live Audio Tap Toggle & ScreenCaptureKit Pipeline
-    func toggleAudioListening() {
-        isAudioListening.toggle()
+    // 4. Session Hygiene & Dynamic Mode Signaling
+    func setMode(_ mode: AssistantMode) {
+        currentMode = mode
+        updateBorderColor()
+        print("🔄 Mode Switched: \(mode)")
+    }
+
+    func updateBorderColor() {
         if isAudioListening {
-            // Hot state: Vivid Emerald border
             panel.contentView?.layer?.borderColor = NSColor(red: 0.06, green: 0.72, blue: 0.51, alpha: 0.95).cgColor
             panel.contentView?.layer?.borderWidth = 2.0
-            print("🎙️ Audio Tap: ACTIVE (Listening to Interviewer Output)")
+        } else {
+            panel.contentView?.layer?.borderColor = currentMode.borderColor
+            panel.contentView?.layer?.borderWidth = 1.5
+        }
+    }
+
+    func resetRound() {
+        print("🧹 Resetting Round Session & Clearing Buffers...")
+        questionBuffer = ""
+        audioSamples.removeAll()
+        isSpeaking = false
+        speechDuration = 0
+        silenceDuration = 0
+        try? FileManager.default.removeItem(atPath: "/tmp/collab_interviewer.wav")
+        
+        let js = """
+        (() => {
+            const btn = document.querySelector('button[aria-label*="New chat"], [data-test-id="new-chat-button"], a[href*="/app"]');
+            if (btn) {
+                btn.click();
+            } else {
+                window.location.href = "https://gemini.google.com/app";
+            }
+        })();
+        """
+        webView.evaluateJavaScript(js, completionHandler: nil)
+    }
+
+    func loadContextVault() -> String {
+        let path = NSString(string: "~/.config/overlay/ContextVault.md").expandingTildeInPath
+        return (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+    }
+
+    // 5. Audio Tap & Voice Activity Detection
+    func toggleAudioListening() {
+        isAudioListening.toggle()
+        updateBorderColor()
+        if isAudioListening {
+            print("🎙️ Audio Tap: ACTIVE")
             startAudioStreamIfNeeded()
         } else {
-            // Idle state: Revert to Neon Violet border
-            panel.contentView?.layer?.borderColor = NSColor(red: 0.65, green: 0.33, blue: 0.97, alpha: 0.85).cgColor
-            panel.contentView?.layer?.borderWidth = 1.5
             print("🔇 Audio Tap: PAUSED")
         }
     }
@@ -151,14 +207,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, SCStre
                 try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: audioQueue)
                 try await stream.startCapture()
                 self.audioStream = stream
-                print("⚡ ScreenCaptureKit Audio Stream Initialized")
             } catch {
                 print("❌ Audio Stream Failed: \(error.localizedDescription)")
             }
         }
     }
 
-    // 5. Audio Buffer Ingestion & Voice Activity Detection (VAD)
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
         guard type == .audio, isAudioListening, !isTranscribing else { return }
 
@@ -174,7 +228,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, SCStre
             bufferListSize: MemoryLayout<AudioBufferList>.size,
             blockBufferAllocator: nil,
             blockBufferMemoryAllocator: nil,
-            flags: 0, // Flag resolved: 0 is standard for reading the retained block buffer
+            flags: 0,
             blockBufferOut: &blockBuffer
         )
         guard status == noErr else { return }
@@ -220,7 +274,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, SCStre
             silenceDuration += chunkDuration
             audioSamples.append(contentsOf: chunk)
             
-            // 1.3s pause detection: Interviewer finished speaking
             if silenceDuration >= 1.3 {
                 let capturedSpeech = audioSamples
                 let totalSpoken = speechDuration
@@ -240,11 +293,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, SCStre
         }
     }
 
-    // 6. Whisper Neural Engine Transcription & Gemini Dispatch
     func processSpokenQuestion(samples: [Float]) {
         defer { self.isTranscribing = false }
 
-        // Safe PCM conversion: uses withUnsafeBytes to eliminate dangling pointer warning
         var pcmData = Data()
         pcmData.reserveCapacity(samples.count * 2)
         for sample in samples {
@@ -287,30 +338,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, SCStre
                                  .replacingOccurrences(of: "(music)", with: "")
                                  .trimmingCharacters(in: .whitespacesAndNewlines)
 
-            guard cleaned.count >= 10 else { return }
-            print("🎯 Interviewer Question Detected: \"\(cleaned)\"")
+            guard cleaned.count >= 8 else { return }
+            print("🎯 Transcribed Question: \"\(cleaned)\" [Mode: \(currentMode)]")
 
-let prompt = """
-            The interviewer just verbally asked this question in our live technical/system design session:
-            "\(cleaned)"
-
-            Format your response into these exact tiers:
-
-            ### 1. QUICK DIRECT ANSWER (Say this first — 2 to 3 sentences)
-            Give the definitive, technically precise answer immediately. State the core concept, mechanism, or architectural decision clearly so it stands completely on its own without needing further explanation.
-
-            ### 2. DEEP DIVE & ELABORATION (Read this only if they ask to elaborate)
-            - How It Works Under the Hood: The internal mechanics, data structures, or protocol details.
-            - Key Trade-offs & Edge Cases: Concrete trade-offs (e.g., latency vs. consistency, write amplification, memory footprint).
-            - Production Numbers & Metrics: Specific real-world numbers, Big-O bounds, or scaling thresholds.
-
-            ### 3. CONVERSATIONAL CHECK-IN (1 sentence)
-            A quick follow-up to check if they want to go deeper (e.g., "Do you want me to drill into the replication lag mitigation, or move on to API design?").
-            """
-
-            DispatchQueue.main.async {
-                self.sendToGemini(prompt)
-            }
+            let prompt = buildPromptForCurrentMode(input: cleaned, isSpoken: true)
+            DispatchQueue.main.async { self.sendToGemini(prompt) }
         } catch {
             print("❌ Whisper Execution Error: \(error.localizedDescription)")
         }
@@ -343,7 +375,119 @@ let prompt = """
         return header
     }
 
-    // 7. Background Full-Screen Ingestion Engine
+    // 6. Dynamic Multi-Mode Prompt Engine (With Calibrated ASCII System Design)
+    func buildPromptForCurrentMode(input: String, isSpoken: Bool) -> String {
+        let vault = loadContextVault()
+
+        switch currentMode {
+        case .coding:
+            return """
+            You are assisting an engineer in a live coding interview.
+            INPUT:
+            \(input)
+
+            Format your response into these exact sections:
+            ### 1. CLARIFYING QUESTIONS TO ASK OUT LOUD
+            2 senior-level questions on constraints, edge cases, or scale.
+
+            ### 2. VERBAL APPROACH / TALKING POINTS
+            3 bullet points explaining data structures, algorithm, and trade-offs before typing.
+
+            ### 3. COMPLETE CODE IMPLEMENTATION
+            Clean, production-grade code. MUST match any pre-existing function signatures or types present in the input.
+
+            ### 4. TIME & SPACE COMPLEXITY
+            1 sentence summarizing Big-O time and auxiliary space.
+            """
+
+        case .systemDesign:
+            return """
+            You are assisting a Staff Distributed Systems & AI Architect in a live System Design interview.
+            INPUT:
+            \(input)
+
+            Format your response into these exact sections:
+            ### 1. 10-SECOND VERBAL OPENER
+            A direct summary clarifying scope, scale constraints (read vs. write throughput, p99 SLA), and primary architectural bottlenecks.
+
+            ### 2. MONOSPACE ASCII ARCHITECTURE DIAGRAM
+            Provide a clean ASCII architecture diagram strictly using standard characters (+, -, |, >, [ ]).
+            Do NOT use special Unicode box drawing symbols.
+            Ensure lines fit cleanly within 60 columns so it pastes cleanly into CoderPad, Docs, or plain text:
+            Example format:
+            [Client / App] --> [CDN / Edge]
+                                  |
+                           [API Gateway]
+                                  |
+                    +-------------+-------------+
+                    |                           |
+             [Ingest Service]           [Query Service]
+                    |                           |
+             [Kafka Topic]              [Redis Cache]
+                    |                           |
+             [Worker Pool]              [Primary DB]
+
+            ### 3. DATA MODEL & SCALING STRATEGY
+            - Data Schema & Sharding Key: Core table keys, horizontal partitioning strategy.
+            - Caching & Storage: Write policy (write-through / write-back), evictions (TTL/LRU).
+            - Messaging & Concurrency: Consumer group scaling, backpressure, idempotency guarantees.
+
+            ### 4. CONCRETE NUMBERS & SIZING
+            2 specific calculations (e.g., IOPS, daily storage footprint, read/write ratio).
+
+            ### 5. FAILURE MODES & MITIGATIONS
+            2 specific mitigations (e.g., handling split-brain, replication lag, cascading timeouts).
+            """
+
+        case .projectDeepDive:
+            return """
+            The interviewer asked a technical deep-dive question about past engineering work:
+            "\(input)"
+
+            GROUND TRUTH RESUME & FLAGSHIP PROJECTS:
+            \(vault)
+
+            INSTRUCTIONS:
+            Answer strictly using the candidate's actual projects, technologies, and metrics from the ground truth above. Never invent companies or architectures outside this scope.
+
+            Format into these exact sections:
+            ### 1. DIRECT ANSWER (Say this first — 2 to 3 sentences)
+            Anchor immediately on the exact flagship project (Project A, B, or C) that matches the question. State the scale ($40M+ wire fraud, 10M+ sessions, or 50k+ TPS) and the architectural approach.
+
+            ### 2. TECHNICAL MECHANISMS & TRADE-OFFS (Bullet points)
+            - How it works internally (mention specific tools: MCP, Neo4j, FSMs, Redis, H3, Kafka, or PSI).
+            - The specific failure, bottleneck, or production incident that was solved.
+            - The engineering trade-off accepted.
+
+            ### 3. CHECK-IN QUESTION (1 sentence)
+            A natural closing prompt to steer the conversation deeper.
+            """
+
+        case .behavioral:
+            return """
+            The interviewer asked a behavioral or leadership question:
+            "\(input)"
+
+            GROUND TRUTH EXPERIENCE & STAR STORIES:
+            \(vault)
+
+            INSTRUCTIONS:
+            Formulate a structured first-person STAR story based on the candidate's real career incidents from the ground truth above.
+
+            Format into these exact sections:
+            ### 1. SITUATION & TASK (20 seconds)
+            The business context, scale constraints, and what made the problem difficult.
+
+            ### 2. SPECIFIC ACTIONS TAKEN (45 seconds)
+            3 clear engineering actions taken as a technical leader (architectural design, veto, or cross-functional alignment).
+
+            ### 3. QUANTIFIED RESULTS (15 seconds)
+            The concrete metrics and long-term organizational impact achieved.
+            """
+        }
+    }
+
+    // 7. OCR Pipeline
     func mergeTextChunks(top: String, bottom: String) -> String {
         let topLines = top.components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         let bottomLines = bottom.components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
@@ -403,37 +547,8 @@ let prompt = """
                     self.questionBuffer = text
                 }
 
-                let payload = """
-                The following text is a raw full-screen OCR transcription of a live collaborative interview environment (e.g., CoderPad, CodeSignal Live, Google Docs, or HackerRank CodePair).
-                It may contain:
-                - Code editor tabs, video chat layout, participant lists, or terminal output.
-                - Problem text pasted as inline code comments, side docs, or instructions.
-                - Existing starter code, imports, and function signatures.
-
-                INSTRUCTIONS:
-                1. Filter out all collaborative tool UI noise (names, chat, buttons, line numbers).
-                2. Identify the core coding problem and extract any existing code boilerplate/function signature.
-                3. Format your response into these exact sections:
-
-                ### 1. QUESTIONS TO ASK OUT LOUD (Say this to the interviewer first)
-                Provide 2 concise, senior-level clarifying questions (input constraints, null/empty edge cases, scale).
-
-                ### 2. VERBAL APPROACH / TALKING POINTS
-                Give 3 bullet points explaining the core algorithmic strategy and chosen data structures to speak through before typing code.
-
-                ### 3. COMPLETE CODE SOLUTION
-                Production-ready, clean code implementation. MUST match any pre-existing function signature, class name, or parameter types found in the editor.
-
-                ### 4. TIME & SPACE COMPLEXITY
-                State Big-O time and auxiliary space in 1 sentence to explain when finished.
-
-                ### 5. EDGE CASES TO WALK THROUGH TOGETHER
-                List 2 quick test scenarios (e.g., duplicates, single-element input) to trace aloud with the interviewer.
-
-                RAW SCREEN TRANSCRIPTION:
-                \(finalScreenDump)
-                """
-                DispatchQueue.main.async { self.sendToGemini(payload) }
+                let prompt = buildPromptForCurrentMode(input: finalScreenDump, isSpoken: false)
+                DispatchQueue.main.async { self.sendToGemini(prompt) }
             } catch {
                 print("❌ OCR Error: \(error.localizedDescription)")
             }
@@ -469,7 +584,7 @@ let prompt = """
         webView.evaluateJavaScript(js, completionHandler: nil)
     }
 
-    // 8. Global Hotkeys with Dedicated Audio Trigger
+    // 8. Global Hotkeys & Steering Engine
     func setupHotkeys() {
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         InstallEventHandler(GetApplicationEventTarget(), { (_, theEvent, userData) -> OSStatus in
@@ -485,7 +600,7 @@ let prompt = """
         let binds: [(UInt32, Int)] = [
             (1, kVK_ANSI_Z),           // Option + Z : Hide / Reveal
             (2, kVK_ANSI_V),           // Option + V : Direct Clipboard Prompt
-            (3, kVK_ANSI_S),           // Option + S : Stop Generation
+            (3, kVK_ANSI_S),           // Option + S : Stop Output
             (4, kVK_ANSI_Q),           // Option + Q : Clean Quit
             (5, kVK_ANSI_Equal),       // Option + = : Scale Up
             (6, kVK_ANSI_Minus),       // Option + - : Scale Down
@@ -494,12 +609,15 @@ let prompt = """
             (9, kVK_DownArrow),        // Option + Down : Scroll Down
             (10, kVK_UpArrow),         // Option + Up : Scroll Up
             (11, kVK_ANSI_O),          // Option + O : Full-Screen Scan (Part 1)
-            (12, kVK_ANSI_1),          // Option + 1 : Snap Left Flush
-            (13, kVK_ANSI_2),          // Option + 2 : Snap Top Right Corner
-            (14, kVK_ANSI_3),          // Option + 3 : Taller & Narrower
-            (15, kVK_ANSI_4),          // Option + 4 : Wider & Shorter
-            (16, kVK_ANSI_P),          // Option + P : Append Part 2 Scan
-            (17, kVK_ANSI_A)           // Option + A : Toggle Live Audio Listener
+            (12, kVK_ANSI_P),          // Option + P : Append Part 2 Scan
+            (13, kVK_ANSI_A),          // Option + A : Toggle Live Audio Listener
+            (14, kVK_ANSI_1),          // Option + 1 : Mode: Coding / DSA (Electric Cyan)
+            (15, kVK_ANSI_2),          // Option + 2 : Mode: System & AI Design (Neon Violet)
+            (16, kVK_ANSI_3),          // Option + 3 : Mode: Project Deep Dive (Amber Gold)
+            (17, kVK_ANSI_4),          // Option + 4 : Mode: Behavioral / STAR (Rose Red)
+            (18, kVK_ANSI_R),          // Option + R : Reset Round / New Chat Session
+            (19, kVK_ANSI_T),          // Option + T : Quick Steer: Make it Shorter / TL;DR
+            (20, kVK_ANSI_E)           // Option + E : Quick Steer: Elaborate / Deep Dive
         ]
 
         for (id, code) in binds {
@@ -508,11 +626,11 @@ let prompt = """
             RegisterEventHotKey(UInt32(code), opt, hID, GetApplicationEventTarget(), 0, &ref)
         }
 
-        // Accidental Key Interceptor (Excludes 'A' as it triggers our audio toggle)
+        // Accidental Key Interceptor (Suppresses unused letter symbols)
         let swallowKeys: [Int] = [
-            kVK_ANSI_B, kVK_ANSI_C, kVK_ANSI_D, kVK_ANSI_E, kVK_ANSI_F,
+            kVK_ANSI_B, kVK_ANSI_C, kVK_ANSI_D, kVK_ANSI_F,
             kVK_ANSI_G, kVK_ANSI_H, kVK_ANSI_I, kVK_ANSI_J, kVK_ANSI_K, kVK_ANSI_L,
-            kVK_ANSI_M, kVK_ANSI_N, kVK_ANSI_R, kVK_ANSI_T, kVK_ANSI_U, kVK_ANSI_W,
+            kVK_ANSI_M, kVK_ANSI_N, kVK_ANSI_U, kVK_ANSI_W,
             kVK_ANSI_X, kVK_ANSI_Y, kVK_ANSI_5, kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8,
             kVK_ANSI_9, kVK_ANSI_0, kVK_ANSI_Semicolon, kVK_ANSI_Slash, kVK_ANSI_Quote,
             kVK_ANSI_Comma, kVK_ANSI_Period, kVK_ANSI_Grave, kVK_ANSI_Backslash
@@ -536,12 +654,15 @@ let prompt = """
         case 7, 8: opacity = max(0.2, min(1.0, opacity + (id == 8 ? 0.15 : -0.15))); panel.alphaValue = opacity
         case 9, 10: webView.evaluateJavaScript("window.scrollBy({top: \(id == 9 ? 400 : -400), behavior: 'smooth'})", completionHandler: nil)
         case 11: runOCR(isAppend: false)
-        case 12: snap(.leftEdgeFlush)
-        case 13: snap(.topRight)
-        case 14: adjustShape(dw: -50, dh: +60)
-        case 15: adjustShape(dw: +60, dh: -50)
-        case 16: runOCR(isAppend: true)
-        case 17: toggleAudioListening()
+        case 12: runOCR(isAppend: true)
+        case 13: toggleAudioListening()
+        case 14: setMode(.coding)          // Option + 1
+        case 15: setMode(.systemDesign)    // Option + 2
+        case 16: setMode(.projectDeepDive) // Option + 3
+        case 17: setMode(.behavioral)      // Option + 4
+        case 18: resetRound()              // Option + R
+        case 19: sendToGemini("Summarize your previous response into 2 ultra-concise, high-impact bullet points designed for an immediate 15-second verbal answer right now.") // Option + T
+        case 20: sendToGemini("Elaborate on that specific solution: drill down into low-level internals, data structures, concurrency handling, and failure modes.") // Option + E
         case 9999: break
         default: break
         }
@@ -555,32 +676,6 @@ let prompt = """
         f.origin.y = max(s.minY, f.maxY - nh)
         f.size = CGSize(width: nw, height: nh)
         panel.setFrame(f, display: true, animate: false)
-    }
-
-    func adjustShape(dw: CGFloat, dh: CGFloat) {
-        guard let s = NSScreen.main?.visibleFrame else { return }
-        var f = panel.frame
-        let nw = max(300, min(s.width, f.width + dw))
-        let nh = max(260, min(s.height, f.height + dh))
-        let dy = nh - f.height
-        f.origin.y = max(s.minY, f.origin.y - dy)
-        f.size = CGSize(width: nw, height: nh)
-        if f.maxX > s.maxX { f.origin.x = s.maxX - f.width }
-        if f.minX < s.minX { f.origin.x = s.minX }
-        panel.setFrame(f, display: true, animate: false)
-    }
-
-    enum Position { case leftEdgeFlush, topRight }
-    func snap(_ pos: Position) {
-        guard let s = NSScreen.main?.visibleFrame else { return }
-        var f = panel.frame
-        switch pos {
-        case .leftEdgeFlush:
-            f.origin = NSPoint(x: s.minX, y: s.maxY - f.height)
-        case .topRight:
-            f.origin = NSPoint(x: s.maxX - f.width, y: s.maxY - f.height)
-        }
-        panel.setFrame(f, display: true, animate: true)
     }
 }
 
